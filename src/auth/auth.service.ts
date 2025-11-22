@@ -3,7 +3,7 @@ import {
     Injectable,
     UnauthorizedException,
 } from '@nestjs/common';
-import { JwtService } from '@nestjs/jwt';
+import { JwtService, JwtSignOptions } from '@nestjs/jwt';
 import * as bcrypt from 'bcryptjs';
 
 import { UsersService } from '../users/users.service';
@@ -25,7 +25,12 @@ export class AuthService {
         private readonly jwtService: JwtService,
     ) { }
 
-    private buildPayload(user: User) {
+    private buildPayload(user: User): {
+        sub: number;
+        email: string;
+        rol: string;
+        nombre: string;
+    } {
         return {
             sub: user.id,
             email: user.email,
@@ -35,17 +40,25 @@ export class AuthService {
     }
 
     private async generateTokens(user: User): Promise<AuthTokens> {
-        const payload = this.buildPayload(user);
+        const payload: {
+            sub: number;
+            email: string;
+            rol: string;
+            nombre: string;
+        } = this.buildPayload(user);
 
-        const accessToken = await this.jwtService.signAsync(payload, {
+        const accessOptions: JwtSignOptions = {
             secret: jwtConstants.accessSecret,
-            expiresIn: jwtConstants.accessExpiresIn,
-        });
+            expiresIn: jwtConstants.accessExpiresIn,   // ahora es number
+        };
 
-        const refreshToken = await this.jwtService.signAsync(payload, {
+        const refreshOptions: JwtSignOptions = {
             secret: jwtConstants.refreshSecret,
-            expiresIn: jwtConstants.refreshExpiresIn,
-        });
+            expiresIn: jwtConstants.refreshExpiresIn,  // number también
+        };
+
+        const accessToken = await this.jwtService.signAsync(payload, accessOptions);
+        const refreshToken = await this.jwtService.signAsync(payload, refreshOptions);
 
         return { accessToken, refreshToken };
     }

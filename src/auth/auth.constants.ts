@@ -1,6 +1,8 @@
 export const jwtConstants = {
-    accessSecret: 'impulsa_access_dev_secret',   // 👈 en producción usá variables de entorno
+    accessSecret: 'impulsa_access_dev_secret',
     refreshSecret: 'impulsa_refresh_dev_secret',
-    accessExpiresIn: '15m',   // token de acceso
-    refreshExpiresIn: '7d',   // refresh token
+
+    // tiempo en segundos (number) → TypeScript queda feliz
+    accessExpiresIn: 60 * 15,         // 15 minutos
+    refreshExpiresIn: 60 * 60 * 24 * 7, // 7 días
 };
