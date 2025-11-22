@@ -1,43 +1,111 @@
 import {
+    BadRequestException,
     Injectable,
-    NotFoundException,
     UnauthorizedException,
 } from '@nestjs/common';
-import { UsuariosService } from '../usuarios/usuarios.service';
-import * as bcrypt from 'bcrypt';
-import { CreateUsuarioDto } from '../usuarios/dto/create-usuario.dto';
+import { JwtService } from '@nestjs/jwt';
+import * as bcrypt from 'bcryptjs';
+
+import { UsersService } from '../users/users.service';
+import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
+import { RefreshDto } from './dto/refresh.dto';
+import { jwtConstants } from './auth.constants';
+import { User } from '../users/user.entity';
+
+interface AuthTokens {
+    accessToken: string;
+    refreshToken: string;
+}
 
 @Injectable()
 export class AuthService {
-    constructor(private readonly usuariosService: UsuariosService) { }
+    constructor(
+        private readonly usersService: UsersService,
+        private readonly jwtService: JwtService,
+    ) { }
 
-    async register(dto: CreateUsuarioDto) {
-        const usuario = await this.usuariosService.crearUsuarioEmprendedor(dto);
-        // devolvemos sin el hash
-        const { passwordHash, ...rest } = usuario;
-        return rest;
+    private buildPayload(user: User) {
+        return {
+            sub: user.id,
+            email: user.email,
+            rol: user.rol,
+            nombre: user.nombre,
+        };
     }
 
+    private async generateTokens(user: User): Promise<AuthTokens> {
+        const payload = this.buildPayload(user);
+
+        const accessToken = await this.jwtService.signAsync(payload, {
+            secret: jwtConstants.accessSecret,
+            expiresIn: jwtConstants.accessExpiresIn,
+        });
+
+        const refreshToken = await this.jwtService.signAsync(payload, {
+            secret: jwtConstants.refreshSecret,
+            expiresIn: jwtConstants.refreshExpiresIn,
+        });
+
+        return { accessToken, refreshToken };
+    }
+
+    // Registro de emprendedor
+    async register(dto: RegisterDto) {
+        const existing = await this.usersService.findByEmail(dto.email);
+        if (existing) {
+            throw new BadRequestException('El correo ya está registrado');
+        }
+
+        const passwordHash = await bcrypt.hash(dto.password, 10);
+        const user = await this.usersService.createEmprendedor({
+            nombre: dto.nombre,
+            email: dto.email,
+            passwordHash,
+        });
+
+        const tokens = await this.generateTokens(user);
+
+        // devolvemos tokens + datos del usuario sin password
+        const { passwordHash: _, ...userSafe } = user;
+        return { ...tokens, user: userSafe };
+    }
+
+    // Login
     async login(dto: LoginDto) {
-        const usuario = await this.usuariosService.buscarPorEmail(dto.email);
-
-        if (!usuario) {
-            throw new NotFoundException('El usuario (correo) no está registrado.');
+        const user = await this.usersService.findByEmail(dto.email);
+        if (!user) {
+            throw new UnauthorizedException('El usuario no existe');
         }
 
-        const passwordValida = await bcrypt.compare(
-            dto.password,
-            usuario.passwordHash,
-        );
-
-        if (!passwordValida) {
-            throw new UnauthorizedException('La contraseña es incorrecta.');
+        const ok = await bcrypt.compare(dto.password, user.passwordHash);
+        if (!ok) {
+            throw new UnauthorizedException('La contraseña es incorrecta');
         }
 
-        const { passwordHash, ...rest } = usuario;
+        const tokens = await this.generateTokens(user);
+        const { passwordHash: _, ...userSafe } = user;
 
-        // En una app real devolveríamos un JWT; por ahora devolvemos los datos del usuario
-        return rest;
+        return { ...tokens, user: userSafe };
+    }
+
+    // Refresh tokens
+    async refresh(dto: RefreshDto) {
+        try {
+            const payload = await this.jwtService.verifyAsync<any>(
+                dto.refreshToken,
+                {
+                    secret: jwtConstants.refreshSecret,
+                },
+            );
+
+            const user = await this.usersService.findById(payload.sub);
+            const tokens = await this.generateTokens(user);
+            const { passwordHash: _, ...userSafe } = user;
+
+            return { ...tokens, user: userSafe };
+        } catch {
+            throw new UnauthorizedException('Refresh token inválido o expirado');
+        }
     }
 }

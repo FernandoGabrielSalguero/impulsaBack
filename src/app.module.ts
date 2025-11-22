@@ -1,30 +1,23 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
-import { ConfigModule, ConfigService } from '@nestjs/config';
-import { UsuarioGlobal } from './usuarios/usuario.entity';
-import { UsuariosModule } from './usuarios/usuarios.module';
-import { AuthModule } from './auth/auth.module';  
+import { UsersModule } from './users/users.module';
+import { User } from './users/user.entity';
+import { AuthModule } from './auth/auth.module';
 
 @Module({
   imports: [
-    ConfigModule.forRoot({
-      isGlobal: true,
+    TypeOrmModule.forRoot({
+      type: 'mysql',
+      host: 'localhost',
+      port: 3306,
+      username: 'root',          // 👈 CAMBIAR SI CORRESPONDE
+      password: '',              // 👈 CAMBIAR SI CORRESPONDE
+      database: 'impulsa_db',    // 👈 tu base
+      entities: [User],
+      synchronize: false,        // la tabla ya existe, no la toques
     }),
-    TypeOrmModule.forRootAsync({
-      inject: [ConfigService],
-      useFactory: (config: ConfigService) => ({
-        type: 'mysql',
-        host: config.get<string>('DB_HOST'),
-        port: parseInt(config.get<string>('DB_PORT') || '3306', 10),
-        username: config.get<string>('DB_USER'),
-        password: config.get<string>('DB_PASS'),
-        database: config.get<string>('DB_NAME'),
-        entities: [UsuarioGlobal],
-        synchronize: false, // usamos la tabla que ya creaste
-      }),
-    }),
-    UsuariosModule,
+    UsersModule,
     AuthModule,
   ],
 })
-export class AppModule {}
+export class AppModule { }
