@@ -1,8 +1,11 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
-import { UsersModule } from './users/users.module';
+
 import { User } from './users/user.entity';
+import { UsersModule } from './users/users.module';
 import { AuthModule } from './auth/auth.module';
+import { LandingPage } from './landing/landing.entity';
+import { LandingModule } from './landing/landing.module';
 
 @Module({
   imports: [
@@ -10,14 +13,15 @@ import { AuthModule } from './auth/auth.module';
       type: 'mysql',
       host: 'localhost',
       port: 3306,
-      username: 'root',          // 👈 CAMBIAR SI CORRESPONDE
-      password: 'impulsa',              // 👈 CAMBIAR SI CORRESPONDE
-      database: 'impulsa_db',    // 👈 tu base
-      entities: [User],
-      synchronize: false,        // la tabla ya existe, no la toques
+      username: 'root',            // tu usuario
+      password: 'impulsa',     // tu password
+      database: 'impulsa_db',
+      entities: [User, LandingPage],
+      synchronize: false,
     }),
     UsersModule,
     AuthModule,
+    LandingModule,   // 👈 IMPORTANTE
   ],
 })
-export class AppModule { }
+export class AppModule {}
